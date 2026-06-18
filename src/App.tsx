@@ -28,6 +28,33 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { RegistroConsulta, ResultadoTempario } from "./types";
 
+const parseSpanishNumber = (input: string): number => {
+  let clean = input.replace(/[^0-9.,-]/g, "");
+  
+  if (clean.includes(".") && clean.includes(",")) {
+    if (clean.lastIndexOf(".") > clean.lastIndexOf(",")) {
+      clean = clean.replace(/,/g, "");
+    } else {
+      clean = clean.replace(/\./g, "").replace(",", ".");
+    }
+  } else if (clean.includes(".")) {
+    const match = clean.match(/\.(\d{3})$/);
+    if (match) {
+      clean = clean.replace(/\./g, "");
+    }
+  } else if (clean.includes(",")) {
+    const match = clean.match(/,(\d{3})$/);
+    if (match) {
+      clean = clean.replace(/,/g, "");
+    } else {
+      clean = clean.replace(",", ".");
+    }
+  }
+  
+  const val = parseFloat(clean);
+  return isNaN(val) ? 0 : val;
+};
+
 export default function App() {
   // Inputs
   const [usuario, setUsuario] = useState(() => {
@@ -38,6 +65,14 @@ export default function App() {
   const [precioHora, setPrecioHora] = useState(() => {
     const saved = localStorage.getItem("tempario_precio_hora");
     return saved ? parseFloat(saved) : 45.0;
+  });
+  const [precioHoraText, setPrecioHoraText] = useState(() => {
+    const saved = localStorage.getItem("tempario_precio_hora");
+    if (saved) {
+      const num = parseFloat(saved);
+      return num >= 1000 ? num.toLocaleString("es-CL") : saved;
+    }
+    return "45";
   });
 
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
@@ -503,17 +538,26 @@ export default function App() {
                         <DollarSign className="w-4 h-4 text-emerald-400" />
                         <span>Valor Hora de Mano de Obra:</span>
                       </label>
-                      <div className="flex items-center bg-slate-900 rounded-lg px-2 border border-slate-700 w-28">
-                        <span className="text-emerald-400 text-xs">$</span>
+                      <div className="flex items-center bg-slate-900 rounded-lg px-2 border border-slate-700 w-32">
+                        <span className="text-emerald-400 text-xs font-semibold">$</span>
                         <input
                           id="hourly-rate"
-                          type="number"
-                          value={precioHora}
-                          step="5"
-                          min="1"
+                          type="text"
+                          value={precioHoraText}
+                          placeholder="45"
                           onChange={(e) => {
-                            const val = parseFloat(e.target.value);
-                            setPrecioHora(isNaN(val) ? 0 : val);
+                            const raw = e.target.value;
+                            setPrecioHoraText(raw);
+                            const numeric = parseSpanishNumber(raw);
+                            setPrecioHora(numeric);
+                          }}
+                          onBlur={() => {
+                            const num = parseSpanishNumber(precioHoraText);
+                            if (num >= 1000) {
+                              setPrecioHoraText(num.toLocaleString("es-CL"));
+                            } else {
+                              setPrecioHoraText(num > 0 ? num.toString() : "");
+                            }
                           }}
                           className="w-full bg-transparent border-none text-right py-1 text-sm font-mono font-bold text-white focus:outline-none"
                         />
@@ -521,20 +565,29 @@ export default function App() {
                     </div>
 
                     {/* Quick select de tarifas por hora */}
-                    <div className="flex justify-between space-x-1">
-                      {[25, 35, 45, 60, 80].map((rate) => (
-                        <button
-                          key={rate}
-                          onClick={() => setPrecioHora(rate)}
-                          className={`flex-1 text-[10.5px] py-1 font-semibold rounded-md border transition-all ${
-                            precioHora === rate
-                              ? "bg-emerald-500/20 text-emerald-350 border-emerald-500/40"
-                              : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800"
-                          }`}
-                        >
-                          ${rate}/h
-                        </button>
-                      ))}
+                    <div className="flex flex-col space-y-1">
+                      <div className="flex justify-between space-x-1">
+                        {(precioHora > 500 ? [10000, 15000, 20000, 30000, 45000] : [25, 35, 45, 60, 80]).map((rate) => (
+                          <button
+                            key={rate}
+                            type="button"
+                            onClick={() => {
+                              setPrecioHora(rate);
+                              setPrecioHoraText(rate >= 1000 ? rate.toLocaleString("es-CL") : rate.toString());
+                            }}
+                            className={`flex-1 text-[10.5px] py-1 font-semibold rounded-md border transition-all ${
+                              precioHora === rate
+                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                                : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800"
+                            }`}
+                          >
+                            ${rate >= 1000 ? (rate/1000) + "k" : rate}/h
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-[9.5px] text-slate-500 text-center block font-mono">
+                        Sección inteligente: Admite formatos locales (ej: 15.000 o 15000)
+                      </span>
                     </div>
 
                     {/* Calculador interactivo - Fiel a la solicitud del usuario */}
